@@ -258,6 +258,62 @@ export default function GraphPage() {
     }
   };
 
+  // Touch handlers
+  const lastTouchRef = useRef<{ x: number; y: number; dist?: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      const node = findNodeAt(t.clientX, t.clientY);
+      if (node) {
+        setDragging(node);
+        node.fx = node.x; node.fy = node.y;
+        const { x, y } = screenToWorld(t.clientX, t.clientY);
+        setOffset({ x: (node.x || 0) - x, y: (node.y || 0) - y });
+      } else {
+        setPanning(true);
+        setPanStart({ x: t.clientX - pan.x, y: t.clientY - pan.y });
+      }
+      lastTouchRef.current = { x: t.clientX, y: t.clientY };
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastTouchRef.current = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2, dist: Math.sqrt(dx * dx + dy * dy) };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      if (dragging) {
+        const { x, y } = screenToWorld(t.clientX, t.clientY);
+        dragging.fx = x + offset.x;
+        dragging.fy = y + offset.y;
+        nodesRef.current = [...nodes];
+      } else if (panning) {
+        setPan({ x: t.clientX - panStart.x, y: t.clientY - panStart.y });
+      }
+    } else if (e.touches.length === 2 && lastTouchRef.current?.dist) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const factor = dist / lastTouchRef.current.dist;
+      const newZoom = Math.max(0.2, Math.min(3, zoom * factor));
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      setPan(p => ({ x: mx - (mx - p.x) * (newZoom / zoom), y: my - (my - p.y) * (newZoom / zoom) }));
+      setZoom(newZoom);
+      lastTouchRef.current = { ...lastTouchRef.current, dist };
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragging) { dragging.fx = null; dragging.fy = null; setDragging(null); }
+    setPanning(false);
+    lastTouchRef.current = null;
+  };
+
   const handleWheel = (e: React.WheelEvent) => {
     const factor = e.deltaY > 0 ? 0.9 : 1.1;
     const newZoom = Math.max(0.2, Math.min(3, zoom * factor));
@@ -281,21 +337,22 @@ export default function GraphPage() {
       </div>
 
       {/* Canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0 cursor-crosshair"
+      <canvas ref={canvasRef} className="absolute inset-0 cursor-crosshair touch-none"
         onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
         onClick={handleClick} onWheel={handleWheel}
+        onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         style={{ cursor: dragging ? 'grabbing' : hoveredNode ? 'pointer' : panning ? 'grabbing' : 'default' }} />
 
       {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex items-center gap-4 z-10">
-        <a href="/" className="glass-strong rounded-xl px-4 py-2.5 flex items-center gap-2 hover:bg-white/[0.08] transition-all text-sm">
+      <div className="absolute top-0 left-0 right-0 p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-4 z-10">
+        <a href="/" className="glass-strong rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 hover:bg-white/[0.08] transition-all text-sm">
           <span>←</span> <span className="hidden sm:inline">Back to Files</span>
         </a>
-        <div className="flex-1" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search nodes..."
-          className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 w-64 transition-all" />
+        <div className="flex-1 min-w-0 hidden sm:block" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
+          className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 w-full sm:w-48 md:w-64 transition-all order-last sm:order-none" />
         <select value={filterType} onChange={e => setFilterType(e.target.value)}
-          className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white transition-all">
+          className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.08] rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-white transition-all flex-shrink-0">
           <option value="all">All Types</option>
           <option value="file">Files</option>
           <option value="folder">Folders</option>
@@ -305,22 +362,24 @@ export default function GraphPage() {
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 glass-strong rounded-xl p-4 z-10 space-y-2">
-        <div className="text-xs text-gray-500 font-medium mb-2">Legend</div>
-        {Object.entries(NODE_COLORS).map(([type, colors]) => (
-          <div key={type} className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 rounded-full" style={{ background: colors.bg }} />
-            <span className="text-gray-400 capitalize">{type}</span>
-          </div>
-        ))}
-        <div className="border-t border-white/[0.06] pt-2 mt-2 text-xs text-gray-500">
+      <div className="absolute bottom-4 left-4 glass-strong rounded-xl p-3 sm:p-4 z-10 space-y-1.5 sm:space-y-2 max-w-[calc(100vw-2rem)] sm:max-w-none">
+        <div className="text-xs text-gray-500 font-medium mb-1.5 sm:mb-2">Legend</div>
+        <div className="flex sm:flex-col gap-3 sm:gap-2 flex-wrap">
+          {Object.entries(NODE_COLORS).map(([type, colors]) => (
+            <div key={type} className="flex items-center gap-1.5 sm:gap-2 text-xs">
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: colors.bg }} />
+              <span className="text-gray-400 capitalize">{type}</span>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-white/[0.06] pt-2 mt-2 text-xs text-gray-500 hidden sm:block">
           Scroll to zoom · Drag to pan · Click nodes to select
         </div>
       </div>
 
       {/* Selected Node Info */}
       {selectedNode && (
-        <div className="absolute bottom-4 right-4 glass-strong rounded-2xl p-5 z-10 w-72 animate-slide-up">
+        <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 glass-strong rounded-2xl p-4 sm:p-5 z-20 sm:w-72 animate-slide-up">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
               style={{ background: NODE_COLORS[selectedNode.type]?.bg }}>
