@@ -84,20 +84,47 @@ export async function analyzeFile(fileId: string, userId: string): Promise<{ suc
 
   const filePath = path.join(UPLOAD_DIR, file.storage_path);
 
-  const prompt = `Analyze this file and extract knowledge graph data.
+  const prompt = `Analyze this file and extract structured knowledge graph data.
 File: ${file.original_name}, Type: ${file.mime_type}, Size: ${file.size} bytes
 
 {CONTENT_PLACEHOLDER}
 
-Return JSON (and ONLY valid JSON, no markdown around it):
+Return ONLY valid JSON (no markdown, no backticks):
 {
-  "entities": [{"name": "Entity Name", "type": "person|organization|topic|technology|location|concept|project"}],
-  "tags": ["tag1", "tag2", "tag3"],
+  "entities": [{"name": "Entity Name", "type": "person|organization|topic|technology|location|concept|project|event|standard|method"}],
+  "tags": ["tag1", "tag2"],
   "summary": "One sentence summary of this file",
-  "relationships": [{"from": "entity1", "to": "entity2", "type": "relates_to|uses|created_by|part_of|references"}]
+  "relationships": [{"from": "entity1", "to": "entity2", "type": "relates_to|uses|created_by|part_of|references|implements|extends|competes_with|authored_by|published_in"}]
 }
 
-Extract meaningful entities and relationships. Be specific with entity names. Return 2-8 entities and 2-6 tags.`;
+## Entity Rules
+- Use CANONICAL names: "TypeScript" not "TS", "Google DeepMind" not "DeepMind" or "Google"
+- People: full names ("John Smith"), no titles/prefixes
+- Orgs: official name ("OpenAI" not "open ai")
+- Technologies: proper casing ("React" not "react", "PostgreSQL" not "postgres")
+- NO generic/vague entities: skip "data", "system", "user", "file", "code", "application", "method", "approach", "results"
+- NO duplicate entities with slight name variations
+- Each entity must be specific enough to be useful as a graph node
+- Prefer 3-6 high-quality entities over 8 mediocre ones
+
+## Tag Rules
+- Tags are lowercase, hyphenated ("machine-learning" not "Machine Learning")
+- Max 2-3 words per tag
+- NO tags that just repeat the file type ("pdf", "document", "image", "text-file")
+- NO tags that overlap with entity names
+- Focus on TOPIC CATEGORIES: what domain/field/subject does this belong to?
+- Good: "reinforcement-learning", "web-security", "api-design", "financial-modeling"
+- Bad: "interesting", "important", "research", "paper", "new", "analysis"
+- Return 2-5 tags
+
+## Relationship Rules
+- Only create relationships between entities YOU extracted (exact name match)
+- "from" and "to" must match entity names exactly
+- Prefer specific relationship types over generic "relates_to"
+
+## Summary
+- One concise sentence, max 120 characters
+- Describe WHAT the file IS/DOES, not what it contains`;
 
   try {
     let messages: any[];
@@ -143,7 +170,7 @@ Extract meaningful entities and relationships. Be specific with entity names. Re
       const entityName = entity.name?.trim();
       const entityType = entity.type?.trim()?.toLowerCase();
       if (!entityName || !entityType) continue;
-      const validTypes = ['person', 'organization', 'topic', 'technology', 'location', 'concept', 'project'];
+      const validTypes = ['person', 'organization', 'topic', 'technology', 'location', 'concept', 'project', 'event', 'standard', 'method'];
       const finalType = validTypes.includes(entityType) ? entityType : 'concept';
       const entityId = db.upsertEntity({ id: uuidv4(), name: entityName, type: finalType, userId });
       entityIdMap[entityName] = entityId;

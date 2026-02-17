@@ -13,6 +13,6 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 RUN mkdir -p /data/uploads
 ENV NODE_ENV=production
-# .env file is mounted/copied at deploy time via Dokploy env config
 EXPOSE 3000
-CMD ["node", "server.js"]
+# Use shell form so runtime env vars from Dokploy are available to Next.js
+CMD node server.js
