@@ -55,11 +55,11 @@ export function PreviewModal({ file, shareToken, onClose }: { file: FileItem; sh
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="max-w-5xl max-h-[90vh] w-full animate-fade-in" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-3">
-          <h3 className="text-white font-medium truncate pr-4">{file.original_name}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">✕</button>
+          <h3 className="text-white font-medium truncate pr-4 text-sm sm:text-base">{file.original_name}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none p-2 -mr-2">✕</button>
         </div>
         <div className="glass-strong rounded-2xl overflow-hidden flex items-center justify-center" style={{ maxHeight: '80vh' }}>
-          {isImage && <img src={url} alt={file.original_name} className="max-h-[80vh] object-contain" />}
+          {isImage && <img src={url} alt={file.original_name} className="max-h-[80vh] max-w-full object-contain" />}
           {isVideo && <video controls autoPlay className="max-h-[80vh] w-full"><source src={url} type={file.mime_type} /></video>}
           {isAudio && <div className="p-12 w-full"><div className="text-5xl text-center mb-6">🎵</div><audio controls autoPlay className="w-full"><source src={url} type={file.mime_type} /></audio></div>}
           {isPdf && <iframe src={url} className="w-full" style={{ height: '80vh' }} />}

@@ -29,6 +29,9 @@
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 .bg-dark-900 { background: #0a0a0f; }
 .bg-accent { background: #6366f1; }
 .bg-accent-dark { background: #4f46e5; }

@@ -61,7 +61,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User) => void }) {
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl" />
       </div>
-      <div className="glass-strong rounded-3xl p-10 max-w-md w-full animate-slide-up space-y-8 relative z-10">
+      <div className="glass-strong rounded-3xl p-6 sm:p-10 max-w-md w-full animate-slide-up space-y-8 relative z-10">
         <div className="text-center space-y-3">
           <div className="text-6xl animate-float">☁️</div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">FileCloud</h1>
@@ -113,7 +113,7 @@ export default function Home() {
   const [sharePermission, setSharePermission] = useState<'view' | 'edit'>('view');
   const [sidebarTab, setSidebarTab] = useState<'files' | 'shared' | 'graph'>('files');
   const [sharedItems, setSharedItems] = useState<ShareItem[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check auth
@@ -210,8 +210,13 @@ export default function Home() {
     <div className="min-h-screen flex"
       onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={handleDrop}>
 
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'} flex-shrink-0 border-r border-white/[0.06] bg-white/[0.02] transition-all duration-300 flex flex-col`}>
+      <aside className={`${sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full lg:translate-x-0 lg:w-0 lg:overflow-hidden'} fixed lg:relative z-40 lg:z-auto h-full flex-shrink-0 border-r border-white/[0.06] bg-[#0a0a0f] lg:bg-white/[0.02] transition-all duration-300 flex flex-col`}>
         <div className="p-5 border-b border-white/[0.06]">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-2xl">☁️</span>
@@ -253,12 +258,12 @@ export default function Home() {
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Top Bar */}
         <header className="flex items-center gap-4 px-6 py-4 border-b border-white/[0.06]">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white transition-colors lg:hidden">☰</button>
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white transition-colors">☰</button>
 
           {sidebarTab === 'files' && (
             <>
               {/* Breadcrumbs */}
-              <nav className="flex items-center gap-2 text-sm flex-1 min-w-0">
+              <nav className="flex items-center gap-2 text-sm flex-1 min-w-0 overflow-x-auto scrollbar-hide">
                 <button onClick={() => setCurrentFolder(null)} className={`hover:text-white transition-colors ${!currentFolder ? 'text-white font-medium' : 'text-gray-400'}`}>Home</button>
                 {breadcrumbs.map(bc => (
                   <span key={bc.id} className="flex items-center gap-2">
@@ -321,7 +326,7 @@ export default function Home() {
                   <p className="text-sm mt-1">Drop files here or click Upload</p>
                 </div>
               ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
                   {folders.map((folder, i) => (
                     <div key={folder.id} className="glass-hover rounded-2xl p-4 cursor-pointer group relative animate-fade-in"
                       style={{ animationDelay: `${i * 30}ms` }}
@@ -469,9 +474,9 @@ export default function Home() {
             )}
             <div className="border-t border-white/[0.06] pt-4">
               <label className="text-xs text-gray-500 block mb-1.5">Share with user</label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input value={shareEmail} onChange={e => setShareEmail(e.target.value)} placeholder="user@email.com"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50" />
+                  className="flex-1 min-w-[180px] bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50" />
                 <select value={sharePermission} onChange={e => setSharePermission(e.target.value as any)}
                   className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white">
                   <option value="view">View</option>
