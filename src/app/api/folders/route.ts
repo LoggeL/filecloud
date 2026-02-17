@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAuthenticated } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { v4 as uuidv4 } from 'uuid';
+import { getSession } from '@/lib/auth';
+import getDb from '@/lib/db';
 
-export async function POST(req: NextRequest) {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { name, parentId } = await req.json();
-  if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
-  const id = uuidv4();
-  db.createFolder({ id, name, parentId: parentId || null });
-  return NextResponse.json({ id, name });
-}
-
-export async function DELETE(req: NextRequest) {
-  if (!(await isAuthenticated())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { id } = await req.json();
-  db.deleteFolder(id);
-  return NextResponse.json({ success: true });
+export async function GET(req: NextRequest) {
+  const user = await getSession();
+  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const parentId = req.nextUrl.searchParams.get('parent_id');
+  const db = getDb();
+  const folders = db.prepare(
+    parentId
+      ? 'SELECT * FROM folders WHERE user_id = ? AND parent_id = ? ORDER BY name'
+      : 'SELECT * FROM folders WHERE user_id = ? AND parent_id IS NULL ORDER BY name'
+  ).all(...(parentId ? [user.id, parentId] : [user.id]));
+  return NextResponse.json(folders);
 }

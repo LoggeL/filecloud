@@ -1,23 +1,17 @@
 import { cookies } from 'next/headers';
+import { db } from './db';
 
-const PASSWORD = process.env.AUTH_PASSWORD || 'files2026';
-
-export async function isAuthenticated(): Promise<boolean> {
+export async function getSessionUser(): Promise<{ id: string; email: string; display_name: string; avatar_url: string | null; is_admin: number } | null> {
   const cookieStore = await cookies();
-  return cookieStore.get('auth_token')?.value === hashPassword(PASSWORD);
+  const sessionId = cookieStore.get('session_id')?.value;
+  if (!sessionId) return null;
+  const session = db.getSession(sessionId);
+  if (!session) return null;
+  return db.getUser(session.user_id);
 }
 
-export function verifyPassword(password: string): boolean {
-  return password === PASSWORD;
-}
-
-export function hashPassword(password: string): string {
-  // Simple hash for cookie - not security critical since it's a shared password
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return 'fc_' + Math.abs(hash).toString(36);
+export async function requireAuth() {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Unauthorized');
+  return user;
 }
