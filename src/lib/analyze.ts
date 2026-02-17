@@ -6,7 +6,7 @@ import path from 'path';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/uploads';
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'google/gemini-3-flash';
+const MODEL = 'google/gemini-2.5-flash';
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.md', '.json', '.js', '.ts', '.tsx', '.jsx', '.css', '.html', '.xml',
