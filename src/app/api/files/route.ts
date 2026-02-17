@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 import { lookup } from 'mime-types';
+import { analyzeFile } from '@/lib/analyze';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/uploads';
 
@@ -53,6 +54,12 @@ export async function POST(req: NextRequest) {
     userId: user.id,
     storagePath: storageName,
   });
+
+  // Fire-and-forget: auto-analyze uploaded file with AI
+  const userId = user.id;
+  setTimeout(() => {
+    analyzeFile(fileId, userId).catch(() => {});
+  }, 100);
 
   return NextResponse.json({ success: true, file: db.getFile(fileId) });
 }

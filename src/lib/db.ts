@@ -75,6 +75,62 @@ function getDb(): Database.Database {
       CREATE INDEX IF NOT EXISTS idx_shares_shared ON shares(shared_with_id);
       CREATE INDEX IF NOT EXISTS idx_shares_owner ON shares(owner_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+      -- AI Knowledge Graph tables
+      CREATE TABLE IF NOT EXISTS entities (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(name, type, user_id)
+      );
+      CREATE TABLE IF NOT EXISTS file_entities (
+        file_id TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        confidence REAL DEFAULT 1.0,
+        PRIMARY KEY (file_id, entity_id),
+        FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+        FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS tags (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#6366f1',
+        user_id TEXT NOT NULL,
+        auto_generated INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(name, user_id)
+      );
+      CREATE TABLE IF NOT EXISTS file_tags (
+        file_id TEXT NOT NULL,
+        tag_id TEXT NOT NULL,
+        PRIMARY KEY (file_id, tag_id),
+        FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS file_analysis (
+        file_id TEXT PRIMARY KEY,
+        summary TEXT,
+        analyzed_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS entity_relationships (
+        id TEXT PRIMARY KEY,
+        from_entity_id TEXT NOT NULL,
+        to_entity_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        FOREIGN KEY (from_entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+        FOREIGN KEY (to_entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+        UNIQUE(from_entity_id, to_entity_id, type, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_file_entities_file ON file_entities(file_id);
+      CREATE INDEX IF NOT EXISTS idx_file_entities_entity ON file_entities(entity_id);
+      CREATE INDEX IF NOT EXISTS idx_file_tags_file ON file_tags(file_id);
+      CREATE INDEX IF NOT EXISTS idx_file_tags_tag ON file_tags(tag_id);
+      CREATE INDEX IF NOT EXISTS idx_tags_user ON tags(user_id);
+      CREATE INDEX IF NOT EXISTS idx_entities_user ON entities(user_id);
     `);
   }
   return _db;
@@ -224,10 +280,116 @@ export const db = {
     const files = getDb().prepare('SELECT id, original_name, mime_type, folder_id, size FROM files WHERE user_id = ?').all(userId) as any[];
     const folders = getDb().prepare('SELECT id, name, parent_id FROM folders WHERE user_id = ?').all(userId) as any[];
     const shares = getDb().prepare(`
-      SELECT s.item_id, s.item_type, u.display_name as shared_with_name 
-      FROM shares s JOIN users u ON s.shared_with_id = u.id 
+      SELECT s.item_id, s.item_type, u.display_name as shared_with_name
+      FROM shares s JOIN users u ON s.shared_with_id = u.id
       WHERE s.owner_id = ?
     `).all(userId) as any[];
-    return { files, folders, shares };
+    const entities = getDb().prepare('SELECT * FROM entities WHERE user_id = ?').all(userId) as any[];
+    const fileEntities = getDb().prepare(`
+      SELECT fe.* FROM file_entities fe
+      JOIN files f ON fe.file_id = f.id
+      WHERE f.user_id = ?
+    `).all(userId) as any[];
+    const tags = getDb().prepare('SELECT * FROM tags WHERE user_id = ?').all(userId) as any[];
+    const fileTags = getDb().prepare(`
+      SELECT ft.* FROM file_tags ft
+      JOIN files f ON ft.file_id = f.id
+      WHERE f.user_id = ?
+    `).all(userId) as any[];
+    const fileAnalyses = getDb().prepare(`
+      SELECT fa.* FROM file_analysis fa
+      JOIN files f ON fa.file_id = f.id
+      WHERE f.user_id = ?
+    `).all(userId) as any[];
+    const entityRelationships = getDb().prepare(`
+      SELECT er.* FROM entity_relationships er
+      WHERE er.user_id = ?
+    `).all(userId) as any[];
+    return { files, folders, shares, entities, fileEntities, tags, fileTags, fileAnalyses, entityRelationships };
+  },
+
+  // Entities
+  upsertEntity(data: { id: string; name: string; type: string; userId: string }): string {
+    const existing = getDb().prepare('SELECT id FROM entities WHERE name = ? AND type = ? AND user_id = ?').get(data.name, data.type, data.userId) as any;
+    if (existing) return existing.id;
+    getDb().prepare('INSERT INTO entities (id, name, type, user_id) VALUES (?, ?, ?, ?)').run(data.id, data.name, data.type, data.userId);
+    return data.id;
+  },
+  linkFileEntity(fileId: string, entityId: string, confidence: number = 1.0) {
+    getDb().prepare('INSERT OR IGNORE INTO file_entities (file_id, entity_id, confidence) VALUES (?, ?, ?)').run(fileId, entityId, confidence);
+  },
+  getEntitiesForFile(fileId: string) {
+    return getDb().prepare(`
+      SELECT e.* FROM entities e
+      JOIN file_entities fe ON e.id = fe.entity_id
+      WHERE fe.file_id = ?
+    `).all(fileId) as any[];
+  },
+  getFilesForEntity(entityId: string) {
+    return getDb().prepare(`
+      SELECT f.id, f.original_name, f.mime_type, f.size FROM files f
+      JOIN file_entities fe ON f.id = fe.file_id
+      WHERE fe.entity_id = ?
+    `).all(entityId) as any[];
+  },
+
+  // Entity relationships
+  upsertEntityRelationship(data: { id: string; fromEntityId: string; toEntityId: string; type: string; userId: string }) {
+    getDb().prepare('INSERT OR IGNORE INTO entity_relationships (id, from_entity_id, to_entity_id, type, user_id) VALUES (?, ?, ?, ?, ?)').run(data.id, data.fromEntityId, data.toEntityId, data.type, data.userId);
+  },
+
+  // Tags
+  upsertTag(data: { id: string; name: string; userId: string; autoGenerated?: boolean; color?: string }): string {
+    const existing = getDb().prepare('SELECT id FROM tags WHERE name = ? AND user_id = ?').get(data.name, data.userId) as any;
+    if (existing) return existing.id;
+    getDb().prepare('INSERT INTO tags (id, name, user_id, auto_generated, color) VALUES (?, ?, ?, ?, ?)').run(
+      data.id, data.name, data.userId, data.autoGenerated ? 1 : 0, data.color || '#6366f1'
+    );
+    return data.id;
+  },
+  getTagsForUser(userId: string) {
+    return getDb().prepare('SELECT * FROM tags WHERE user_id = ? ORDER BY name').all(userId) as any[];
+  },
+  linkFileTag(fileId: string, tagId: string) {
+    getDb().prepare('INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?)').run(fileId, tagId);
+  },
+  unlinkFileTag(fileId: string, tagId: string) {
+    getDb().prepare('DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?').run(fileId, tagId);
+  },
+  getTagsForFile(fileId: string) {
+    return getDb().prepare(`
+      SELECT t.* FROM tags t
+      JOIN file_tags ft ON t.id = ft.tag_id
+      WHERE ft.file_id = ?
+    `).all(fileId) as any[];
+  },
+  deleteTag(id: string) {
+    getDb().prepare('DELETE FROM file_tags WHERE tag_id = ?').run(id);
+    getDb().prepare('DELETE FROM tags WHERE id = ?').run(id);
+  },
+
+  // File analysis
+  setFileAnalysis(fileId: string, summary: string) {
+    getDb().prepare('INSERT OR REPLACE INTO file_analysis (file_id, summary) VALUES (?, ?)').run(fileId, summary);
+  },
+  getFileAnalysis(fileId: string) {
+    return getDb().prepare('SELECT * FROM file_analysis WHERE file_id = ?').get(fileId) as any;
+  },
+  getUnanalyzedFiles(userId: string) {
+    return getDb().prepare(`
+      SELECT f.* FROM files f
+      LEFT JOIN file_analysis fa ON f.id = fa.file_id
+      WHERE f.user_id = ? AND fa.file_id IS NULL
+      ORDER BY f.created_at DESC
+    `).all(userId) as any[];
+  },
+  getAnalysisStats(userId: string) {
+    const total = (getDb().prepare('SELECT COUNT(*) as c FROM files WHERE user_id = ?').get(userId) as any).c;
+    const analyzed = (getDb().prepare(`
+      SELECT COUNT(*) as c FROM file_analysis fa
+      JOIN files f ON fa.file_id = f.id
+      WHERE f.user_id = ?
+    `).get(userId) as any).c;
+    return { total, analyzed };
   },
 };
