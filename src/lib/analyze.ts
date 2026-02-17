@@ -28,6 +28,10 @@ function isImageFile(mimeType: string): boolean {
   return mimeType.startsWith('image/') && !mimeType.includes('svg');
 }
 
+function isPdfFile(mimeType: string, filename: string): boolean {
+  return mimeType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf');
+}
+
 interface LLMAnalysis {
   entities: { name: string; type: string }[];
   tags: string[];
@@ -144,6 +148,28 @@ Return ONLY valid JSON (no markdown, no backticks):
         content: [
           { type: 'text', text: contentPrompt },
           { type: 'image_url', image_url: { url: `data:${file.mime_type};base64,${base64}` } },
+        ],
+      }];
+    } else if (isPdfFile(file.mime_type, file.original_name)) {
+      // Send PDF as base64 to Gemini (native PDF understanding)
+      let base64 = '';
+      try {
+        const pdfBuf = fs.readFileSync(filePath);
+        // Limit to ~10MB for API
+        if (pdfBuf.length > 10 * 1024 * 1024) {
+          base64 = pdfBuf.subarray(0, 10 * 1024 * 1024).toString('base64');
+        } else {
+          base64 = pdfBuf.toString('base64');
+        }
+      } catch {
+        return { success: false, error: 'Could not read PDF file' };
+      }
+      const contentPrompt = prompt.replace('{CONTENT_PLACEHOLDER}', 'Content: See attached PDF document');
+      messages = [{
+        role: 'user',
+        content: [
+          { type: 'text', text: contentPrompt },
+          { type: 'image_url', image_url: { url: `data:application/pdf;base64,${base64}` } },
         ],
       }];
     } else if (isTextFile(file.mime_type, file.original_name)) {
