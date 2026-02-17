@@ -5,13 +5,12 @@ import fs from 'fs';
 const DB_PATH = process.env.DB_PATH || '/data/files.db';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/uploads';
 
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
 let _db: Database.Database | null = null;
 
 function getDb(): Database.Database {
   if (!_db) {
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');
