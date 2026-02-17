@@ -375,6 +375,17 @@ export const db = {
   getFileAnalysis(fileId: string) {
     return getDb().prepare('SELECT * FROM file_analysis WHERE file_id = ?').get(fileId) as any;
   },
+  getAllFiles(userId: string) {
+    return getDb().prepare(`SELECT * FROM files WHERE user_id = ? ORDER BY created_at DESC`).all(userId) as any[];
+  },
+  clearAnalysis(userId: string) {
+    getDb().prepare(`DELETE FROM file_analysis WHERE file_id IN (SELECT id FROM files WHERE user_id = ?)`).run(userId);
+    getDb().prepare(`DELETE FROM file_entities WHERE file_id IN (SELECT id FROM files WHERE user_id = ?)`).run(userId);
+    getDb().prepare(`DELETE FROM file_tags WHERE file_id IN (SELECT id FROM files WHERE user_id = ?)`).run(userId);
+    getDb().prepare(`DELETE FROM entities WHERE user_id = ?`).run(userId);
+    getDb().prepare(`DELETE FROM entity_relationships WHERE user_id = ?`).run(userId);
+    getDb().prepare(`DELETE FROM tags WHERE user_id = ? AND auto_generated = 1`).run(userId);
+  },
   getUnanalyzedFiles(userId: string) {
     return getDb().prepare(`
       SELECT f.* FROM files f

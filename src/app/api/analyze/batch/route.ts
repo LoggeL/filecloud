@@ -3,11 +3,18 @@ import { getSessionUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { analyzeFile } from '@/lib/analyze';
 
-export async function POST() {
+export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const unanalyzed = db.getUnanalyzedFiles(user.id);
+  let body: any = {};
+  try { body = await request.json(); } catch { /* empty body is fine */ }
+
+  if (body.reanalyze) {
+    db.clearAnalysis(user.id);
+  }
+
+  const unanalyzed = body.reanalyze ? db.getAllFiles(user.id) : db.getUnanalyzedFiles(user.id);
 
   if (unanalyzed.length === 0) {
     return NextResponse.json({ success: true, message: 'All files already analyzed', processed: 0 });

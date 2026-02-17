@@ -32,6 +32,8 @@ export default function GraphPage() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState('');
   const [dragging, setDragging] = useState<GraphNode | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -359,6 +361,29 @@ export default function GraphPage() {
           <option value="tag">Tags</option>
           <option value="user">Users</option>
         </select>
+        <button onClick={async () => {
+          setAnalyzing(true); setAnalysisStatus('Re-analyzing...');
+          try {
+            const res = await fetch('/api/analyze/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reanalyze: true }) });
+            const data = await res.json();
+            setAnalysisStatus(`Done: ${data.succeeded || 0}/${data.processed || 0} files`);
+            // Reload graph
+            const graphRes = await fetch('/api/graph');
+            if (graphRes.ok) {
+              const gd = await graphRes.json();
+              const w = window.innerWidth, h = window.innerHeight;
+              const newNodes = gd.nodes.map((n: GraphNode) => ({ ...n, x: w/2 + (Math.random()-0.5)*400, y: h/2 + (Math.random()-0.5)*400, vx: 0, vy: 0 }));
+              setNodes(newNodes); setEdges(gd.edges);
+              nodesRef.current = newNodes; edgesRef.current = gd.edges;
+            }
+            setTimeout(() => setAnalysisStatus(''), 3000);
+          } catch { setAnalysisStatus('Error'); }
+          setAnalyzing(false);
+        }} disabled={analyzing}
+          className="glass-strong rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm hover:bg-white/[0.08] transition-all flex-shrink-0 disabled:opacity-50">
+          {analyzing ? '⏳' : '🔄'} <span className="hidden sm:inline ml-1">{analyzing ? 'Analyzing...' : 'Re-analyze'}</span>
+        </button>
+        {analysisStatus && <span className="text-xs text-gray-400 flex-shrink-0">{analysisStatus}</span>}
       </div>
 
       {/* Legend */}
