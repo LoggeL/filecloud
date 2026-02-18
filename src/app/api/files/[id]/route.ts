@@ -11,7 +11,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const file = db.getFile(id);
   if (!file) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Check access: share token or authenticated user with access
   const shareToken = req.nextUrl.searchParams.get('share');
   if (shareToken) {
     if (file.share_token !== shareToken) return NextResponse.json({ error: 'Invalid share' }, { status: 403 });
@@ -38,4 +37,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   });
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
+  const file = db.getFile(id);
+  if (!file || file.user_id !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const body = await req.json();
+
+  if (body.originalName !== undefined) db.updateFile(id, { originalName: body.originalName.trim() });
+  if ('folderId' in body) db.updateFile(id, { folderId: body.folderId });
+  if (body.starred !== undefined) db.updateFile(id, { starred: !!body.starred });
+  if (body.trashed === true) db.trashFile(id);
+  if (body.trashed === false) db.restoreFile(id);
+
+  return NextResponse.json({ success: true, file: db.getFile(id) });
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
+  const file = db.getFile(id);
+  if (!file || file.user_id !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  db.permanentDeleteFile(id);
+  return NextResponse.json({ success: true });
 }

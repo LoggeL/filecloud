@@ -14,6 +14,14 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const folderId = req.nextUrl.searchParams.get('folderId') || null;
+  const starred = req.nextUrl.searchParams.get('starred') === '1';
+
+  if (starred) {
+    const files = db.getStarredFiles(user.id);
+    const storage = db.getStorageUsage(user.id);
+    return NextResponse.json({ files, folders: [], breadcrumbs: [], storage });
+  }
+
   const files = db.getFilesInFolder(user.id, folderId);
   const folders = db.getFoldersInFolder(user.id, folderId);
   const breadcrumbs = db.getBreadcrumbs(folderId);
