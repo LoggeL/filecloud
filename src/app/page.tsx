@@ -463,7 +463,7 @@ export default function Home() {
       <aside className={`
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         fixed lg:relative z-40 lg:z-auto
-        w-52 h-full flex-shrink-0
+        w-52 h-screen flex-shrink-0 sticky top-0
         bg-[#0D0C0A] border-r border-[rgba(248,240,220,0.06)]
         flex flex-col
         transition-transform duration-300
