@@ -131,8 +131,13 @@ function getDb(): Database.Database {
       CREATE INDEX IF NOT EXISTS idx_file_tags_file ON file_tags(file_id);
       CREATE INDEX IF NOT EXISTS idx_file_tags_tag ON file_tags(tag_id);
       CREATE INDEX IF NOT EXISTS idx_tags_user ON tags(user_id);
-      CREATE INDEX IF NOT EXISTS idx_entities_user ON entities(user_id);
     `);
+    const indexMigrations = [
+      'CREATE INDEX IF NOT EXISTS idx_entities_user ON entities(user_id)',
+    ];
+    for (const sql of indexMigrations) {
+      try { _db.exec(sql); } catch { /* legacy table shape */ }
+    }
     const migrations = [
       "ALTER TABLE files ADD COLUMN starred INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE files ADD COLUMN deleted_at TEXT",
