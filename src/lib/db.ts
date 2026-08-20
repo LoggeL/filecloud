@@ -162,7 +162,18 @@ export const db = {
   getAllUsers() { return getDb().prepare('SELECT id, email, display_name, avatar_url, is_admin, created_at FROM users').all() as any[]; },
 
   createSession(data: { id: string; userId: string; expiresAt: string }) {
-    getDb().prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').run(data.id, data.userId, data.expiresAt);
+    const database = getDb();
+    const columns = database.prepare('PRAGMA table_info(sessions)').all() as Array<{ name: string }>;
+    const hasTokenColumn = columns.some((column) => column.name === 'token');
+
+    if (hasTokenColumn) {
+      database
+        .prepare('INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)')
+        .run(data.id, data.userId, data.id, data.expiresAt);
+      return;
+    }
+
+    database.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').run(data.id, data.userId, data.expiresAt);
   },
   getSession(id: string) { return getDb().prepare("SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')").get(id) as any; },
   deleteSession(id: string) { getDb().prepare('DELETE FROM sessions WHERE id = ?').run(id); },
