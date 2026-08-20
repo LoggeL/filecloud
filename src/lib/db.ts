@@ -306,15 +306,23 @@ export const db = {
   },
 
   getGraphData(userId: string) {
-    const files = getDb().prepare('SELECT id, original_name, mime_type, folder_id, size FROM files WHERE user_id = ? AND deleted_at IS NULL').all(userId) as any[];
-    const folders = getDb().prepare('SELECT id, name, parent_id FROM folders WHERE user_id = ? AND deleted_at IS NULL').all(userId) as any[];
-    const shares = getDb().prepare("SELECT s.item_id, s.item_type, u.display_name as shared_with_name FROM shares s JOIN users u ON s.shared_with_id = u.id WHERE s.owner_id = ?").all(userId) as any[];
-    const entities = getDb().prepare('SELECT * FROM entities WHERE user_id = ?').all(userId) as any[];
-    const fileEntities = getDb().prepare('SELECT fe.* FROM file_entities fe JOIN files f ON fe.file_id = f.id WHERE f.user_id = ?').all(userId) as any[];
-    const tags = getDb().prepare('SELECT * FROM tags WHERE user_id = ?').all(userId) as any[];
-    const fileTags = getDb().prepare('SELECT ft.* FROM file_tags ft JOIN files f ON ft.file_id = f.id WHERE f.user_id = ?').all(userId) as any[];
-    const fileAnalyses = getDb().prepare('SELECT fa.* FROM file_analysis fa JOIN files f ON fa.file_id = f.id WHERE f.user_id = ?').all(userId) as any[];
-    const entityRelationships = getDb().prepare('SELECT er.* FROM entity_relationships er WHERE er.user_id = ?').all(userId) as any[];
+    const database = getDb();
+    const hasColumn = (table: string, column: string) =>
+      (database.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((info) => info.name === column);
+
+    const files = database.prepare('SELECT id, original_name, mime_type, folder_id, size FROM files WHERE user_id = ? AND deleted_at IS NULL').all(userId) as any[];
+    const folders = database.prepare('SELECT id, name, parent_id FROM folders WHERE user_id = ? AND deleted_at IS NULL').all(userId) as any[];
+    const shares = database.prepare("SELECT s.item_id, s.item_type, u.display_name as shared_with_name FROM shares s JOIN users u ON s.shared_with_id = u.id WHERE s.owner_id = ?").all(userId) as any[];
+    const entities = hasColumn('entities', 'user_id')
+      ? database.prepare('SELECT * FROM entities WHERE user_id = ?').all(userId) as any[]
+      : database.prepare('SELECT * FROM entities').all() as any[];
+    const fileEntities = database.prepare('SELECT fe.* FROM file_entities fe JOIN files f ON fe.file_id = f.id WHERE f.user_id = ?').all(userId) as any[];
+    const tags = database.prepare('SELECT * FROM tags WHERE user_id = ?').all(userId) as any[];
+    const fileTags = database.prepare('SELECT ft.* FROM file_tags ft JOIN files f ON ft.file_id = f.id WHERE f.user_id = ?').all(userId) as any[];
+    const fileAnalyses = database.prepare('SELECT fa.* FROM file_analysis fa JOIN files f ON fa.file_id = f.id WHERE f.user_id = ?').all(userId) as any[];
+    const entityRelationships = hasColumn('entity_relationships', 'user_id')
+      ? database.prepare('SELECT er.* FROM entity_relationships er WHERE er.user_id = ?').all(userId) as any[]
+      : database.prepare('SELECT er.* FROM entity_relationships er').all() as any[];
     return { files, folders, shares, entities, fileEntities, tags, fileTags, fileAnalyses, entityRelationships };
   },
 
